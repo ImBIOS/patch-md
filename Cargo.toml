@@ -1,0 +1,22 @@
+[package]
+name = "patch-md"
+version = "0.1.0"
+edition = "2024"
+description = "Self-healing patch system for software customization"
+license = "MIT"
+repository = "https://github.com/ImBIOS/patch-md"
+keywords = ["patch", "diff", "merge", "self-healing"]
+authors = ["ImBIOS"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "cargo"] }
+anyhow = "1.0"
+thiserror = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+similar = "2.6"
+regex = "1.10"
+dirs = "5.0"
+indicatif = "0.17"
+console = "0.15"
