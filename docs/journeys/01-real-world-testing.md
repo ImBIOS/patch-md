@@ -4,10 +4,11 @@ This document captures my journey testing patch-md with actual open-source proje
 
 ## Test Summary
 
-| Project | Language | Files Modified | Status |
-|---------|----------|---------------|--------|
-| [fd](#test-1-fd-find) | Rust | Cargo.toml, src/main.rs | ✅ Pass |
-| [GitHub CLI](#test-2-github-cli) | Go | go.mod | ✅ Pass |
+| # | Project | Language | Files Modified | Status |
+|---|---------|----------|---------------|--------|
+| 1 | [fd](#test-1-fd-find) | Rust | Cargo.toml, src/main.rs | ✅ Pass |
+| 2 | [GitHub CLI](#test-2-github-cli) | Go | go.mod | ✅ Pass |
+| 3 | [rust-cookbook](#test-3-rust-cookbook) | Rust | Cargo.toml | ✅ Pass |
 
 ---
 
@@ -70,44 +71,6 @@ patch-md diff
 patch-md apply
 ```
 
-### Generated PATCH.md
-
-```markdown
-# PATCH.md
-
-## Metadata
-
-| Key | Value |
-|-----|-------|
-| version | 1.0 |
-| target | sharkdp/fd@v9.0 |
-| author | patch-md-tester |
-
-## Patches
-
-### Cargo.toml
-
-> **Intent**: Add enhanced logging feature and update description to track custom build flags
-
-```diff
--description = "fd is a simple, fast and user-friendly alternative to find."
-+description = "fd is a simple, fast and user-friendly alternative to find. Modified with custom flags."
-...
-+enhanced-logging = []
-```
-
-### src/main.rs
-
-> **Intent**: Add enhanced logging when the feature flag is enabled at startup
-
-```diff
- fn run() -> Result<ExitCode> {
-+    #[cfg(feature = "enhanced-logging")]
-+    eprintln!("[fd] Starting with enhanced logging enabled");
-+
-     let opts = Opts::parse();
-```
-
 ### Results
 
 | Test | Result | Notes |
@@ -168,6 +131,60 @@ patch-md apply
 
 ---
 
+## Test 3: rust-cookbook
+
+**Project**: [rust-lang-nursery/rust-cookbook](https://github.com/rust-lang-nursery/rust-cookbook)
+**Language**: Rust
+**Version Tested**: v1.1.0
+
+### Setup
+
+```bash
+cd /tmp
+git clone --depth 1 https://github.com/rust-lang-nursery/rust-cookbook.git cookbook-test
+cd cookbook-test
+patch-md init --target "rust-lang-nursery/rust-cookbook@v0.1" --author "patch-md-tester"
+mkdir -p .original && cp Cargo.toml .original/
+```
+
+### Customizations Made
+
+#### Cargo.toml - Add Description Field
+```toml
+[package]
+name = "rust-cookbook"
+version = "1.1.0"
+description = "Demonstrating best-practice recipes for writing Rust applications. PATCH.md customized build."
+authors = ["Brian Anderson <banderson@mozilla.com>", "Andrew Gauger <andygauge@gmail.com>"]
+edition = "2018"
+# ...
+```
+
+This adds a description field to the package metadata to identify customized builds.
+
+### Commands Used
+
+```bash
+patch-md add Cargo.toml --original .original/Cargo.toml \
+    --intent "Add description field to identify PATCH.md customized builds in package metadata"
+
+patch-md diff
+patch-md status
+patch-md apply
+```
+
+### Results
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Init | ✅ Pass | Works with workspace projects |
+| Add with intent | ✅ Pass | Captured metadata change |
+| Status | ✅ Pass | Shows [MODIFIED] correctly |
+| Diff | ✅ Pass | Shows intent and diff |
+| Apply | ✅ Pass | Reapplied description field |
+
+---
+
 ## Key Observations
 
 ### What Works Well
@@ -176,6 +193,7 @@ patch-md apply
 2. **Multi-file Support**: Can track patches across multiple files in a single PATCH.md
 3. **Cross-language Support**: Works with Rust, Go, and any text-based file format
 4. **Dual-Record Keeping**: Storing both the diff AND intent enables better understanding of customizations
+5. **Workspace Projects**: Works with Rust workspace Cargo.toml files
 
 ### Workflow Verified
 
@@ -212,11 +230,12 @@ patch-md apply  # Reapplies your customizations
 
 ## Conclusion
 
-Both tests passed successfully, demonstrating that patch-md:
+All 3 tests passed successfully, demonstrating that patch-md:
 
 1. ✅ Works with real-world OSS projects
-2. ✅ Supports multiple programming languages
+2. ✅ Supports multiple programming languages (Rust, Go)
 3. ✅ Correctly captures and reapplies customizations
 4. ✅ Enables intent-based tracking for better understanding
+5. ✅ Handles workspace-style projects (rust-cookbook)
 
 The tool is ready for production use with any open-source project.
