@@ -324,13 +324,14 @@ fn resolve_file_with_claude(file_path: &str, patch_content: &str) -> Result<()> 
     // Build a detailed prompt for Claude Code
     let prompt = build_resolution_prompt(file_path, &current_content, patch_content);
 
-    // Run Claude Code with the prompt
+    // Run Claude Code with text output
     let output = Command::new("claude")
         .args([
-            "--bare",
-            "-p", &prompt,
-            "--output-format", "json",
-            "--allowedTools", "Read,Edit,Bash"
+            "-p",           // Print mode (non-interactive)
+            &prompt,
+            "--output-format", "text",
+            "--no-session-persistence",  // Don't save session
+            "--dangerously-skip-permissions",  // Skip permission prompts
         ])
         .output()
         .context("Failed to run Claude Code. Make sure it's installed and in PATH.")?;
@@ -343,53 +344,68 @@ fn resolve_file_with_claude(file_path: &str, patch_content: &str) -> Result<()> 
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Parse JSON output to get the resolution
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
-        if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
-            // Write the resolved content
-            fs::write(file_path, result)?;
-            println!("  -> Resolved successfully");
-            return Ok(());
-        }
+    // Parse the response - Claude wraps in code blocks by default
+    // We need to extract the content between code block markers
+    let resolved_content = extract_code_block(&stdout)
+        .unwrap_or_else(|| stdout.trim().to_string());
+
+    if resolved_content.is_empty() {
+        println!("  -> Claude Code returned empty response");
+        return Ok(());
     }
 
-    println!("  -> Could not parse Claude Code output, please resolve manually");
+    // Write the resolved content
+    fs::write(file_path, &resolved_content)?;
+    println!("  -> Resolved successfully");
     Ok(())
+}
+
+/// Extract content from a Claude Code code block response
+fn extract_code_block(output: &str) -> Option<String> {
+    // Try to find content between ``` and ```
+    let lines: Vec<&str> = output.lines().collect();
+    
+    // Find start marker (```, ```rust, ```python, etc.)
+    let start_idx = lines.iter().position(|l| l.starts_with("```") && !l.contains("diff") && !l.contains("json") && !l.contains("mcp"))?;
+    
+    // Find end marker (```)
+    let end_idx = lines[start_idx + 1..].iter().position(|l| *l == "```")?;
+    
+    // Join lines between start and end
+    let content = lines[start_idx + 1..start_idx + 1 + end_idx].join("\n");
+    Some(content)
 }
 
 /// Build a detailed prompt for Claude Code to resolve conflicts
 fn build_resolution_prompt(file_path: &str, conflicted_content: &str, patch_content: &str) -> String {
-    let mut prompt = format!(
-        r#"You are helping resolve git-style merge conflicts in the file: {}
-
-## Your Task:
-1. Read the conflicted file
-2. Understand the user's original intent from their PATCH.md customizations
-3. Resolve the conflicts by implementing the user's intended functionality
+    format!(
+        r#"You are helping resolve git-style merge conflicts in: {}
 
 ## Conflicted File Content:
 ```
 {}
 ```
 
-## User's PATCH.md (their customizations and intent):
+## User's PATCH.md (their customizations with intent):
 ```
 {}
 ```
 
-## Instructions:
-- Analyze the conflict markers (<<<<<<<, =======, >>>>>>>)
-- Understand what changes each side represents
-- Use the PATCH.md intent to determine the correct resolution
-- Implement the user's intended functionality in the new codebase
-- Output ONLY the resolved file content as plain text (no markdown, no explanations)
-- The output will be used directly to replace the file content"#,
+## Your Task:
+1. Analyze the conflict markers (<<<<<<< HEAD, =======, >>>>>>> patch-md)
+2. Understand what changes each side represents
+3. Use the PATCH.md intent to determine the correct resolution
+4. Combine BOTH changes (the upstream change AND the user's customization) when they don't conflict
+5. Preserve the user's intended functionality
+
+## IMPORTANT - Output Format:
+Output ONLY the complete resolved file content wrapped in a Rust code block (```rust ... ```).
+Do NOT include any explanations or markdown outside the code block.
+The code block content will be extracted and used directly to replace the file."#,
         file_path,
         conflicted_content,
         patch_content
-    );
-
-    prompt
+    )
 }
 
 /// Remove a patch from PATCH.md
