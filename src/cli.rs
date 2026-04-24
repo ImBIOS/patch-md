@@ -1,4 +1,8 @@
 //! CLI argument parsing and command routing
+//!
+//! Implements Theo's vision:
+//! - Intent-Based Customization via --intent flag
+//! - Agent-Assisted Reconciliation via resolve command
 
 use clap::{Parser, Subcommand};
 
@@ -28,6 +32,9 @@ pub enum Commands {
     },
 
     /// Add a file's current state as a patch
+    ///
+    /// Use --intent to describe WHY this change was made.
+    /// This implements dual-record keeping: storing both the diff and the intent.
     Add {
         /// Path to the modified file
         file: String,
@@ -35,6 +42,11 @@ pub enum Commands {
         /// Path to the original file (for comparison)
         #[arg(short, long)]
         original: Option<String>,
+
+        /// Intent-Based Customization: describe the purpose of this change
+        /// Example: "Enable debug mode for development"
+        #[arg(short = 'i', long)]
+        intent: Option<String>,
     },
 
     /// Apply patches to current files
@@ -58,11 +70,26 @@ pub enum Commands {
     /// Check status of patches
     Status,
 
-    /// Reconcile patches with upstream changes
+    /// Reconcile patches with upstream changes (basic 3-way merge)
     Reconcile {
         /// Path to the upstream directory
         #[arg(short, long)]
         upstream: String,
+    },
+
+    /// Agent-Assisted Reconciliation: Use AI to resolve conflicts
+    ///
+    /// This implements Theo's vision: "If a conflict arises, an AI agent
+    /// reviews the patch.md file, understands the user's original goal,
+    /// and attempts to re-implement that functionality in the new codebase."
+    Resolve {
+        /// Path to the file with conflicts
+        #[arg(short, long)]
+        file: Option<String>,
+
+        /// Use Claude Code for AI-powered resolution (default)
+        #[arg(short, long, default_value = "claude")]
+        agent: Option<String>,
     },
 
     /// Remove a patch from PATCH.md

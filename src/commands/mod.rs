@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 use anyhow::{Context, Result};
 
@@ -30,7 +31,7 @@ pub fn init(target: Option<&str>, author: Option<&str>) -> Result<()> {
 }
 
 /// Add a file's current state as a patch
-pub fn add(file_path: &str, original_path: Option<&str>) -> Result<()> {
+pub fn add(file_path: &str, original_path: Option<&str>, intent: Option<&str>) -> Result<()> {
     let file_path = Path::new(file_path);
 
     if !file_path.exists() {
@@ -55,7 +56,11 @@ pub fn add(file_path: &str, original_path: Option<&str>) -> Result<()> {
 
     let diff = generate_diff(&original_content, &modified_content, file_path.to_str().unwrap())?;
 
-    let patch = FilePatch::new(file_path.to_str().unwrap(), diff);
+    let patch = if let Some(i) = intent {
+        FilePatch::with_intent(file_path.to_str().unwrap(), diff, i)
+    } else {
+        FilePatch::new(file_path.to_str().unwrap(), diff)
+    };
 
     // Load or create PATCH.md
     let mut doc = if Path::new(PATCH_FILENAME).exists() {
@@ -140,6 +145,10 @@ pub fn diff(file_path: Option<&str>) -> Result<()> {
         if let Some(patch) = doc.get_patch(path) {
             println!("Patch for {}:", path);
             println!("{}", patch.diff);
+            if let Some(ref intent) = patch.intent {
+                println!();
+                println!("Intent: {}", intent);
+            }
         } else {
             println!("No patch found for: {}", path);
         }
@@ -147,6 +156,10 @@ pub fn diff(file_path: Option<&str>) -> Result<()> {
         // Show all patches
         for patch in &doc.patches {
             println!("=== {} ===", patch.path);
+            if let Some(ref intent) = patch.intent {
+                println!("Intent: {}", intent);
+                println!();
+            }
             println!("{}", patch.diff);
             println!();
         }
@@ -242,6 +255,141 @@ pub fn reconcile(upstream_path: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Agent-Assisted Reconciliation: Use AI to resolve conflicts
+///
+/// This implements Theo's vision: "If a conflict arises, an AI agent
+/// reviews the patch.md file, understands the user's original goal,
+/// and attempts to re-implement that functionality in the new codebase."
+pub fn resolve(file_path: Option<&str>, _agent: Option<&str>) -> Result<()> {
+    // Read PATCH.md to understand the user's intended customizations
+    let patch_content = if Path::new(PATCH_FILENAME).exists() {
+        fs::read_to_string(PATCH_FILENAME)?
+    } else {
+        anyhow::bail!("No {} found. Run 'patch-md init' first.", PATCH_FILENAME);
+    };
+
+    // Determine which files have conflicts
+    let files_to_resolve: Vec<String> = if let Some(path) = file_path {
+        vec![path.to_string()]
+    } else {
+        // Find all files with conflict markers
+        find_conflicted_files()?
+    };
+
+    if files_to_resolve.is_empty() {
+        println!("No conflicts found. Run 'patch-md reconcile' first or use --file to specify a file.");
+        return Ok(());
+    }
+
+    println!("Resolving {} file(s) with Claude Code AI assistance...\n", files_to_resolve.len());
+
+    for file in &files_to_resolve {
+        resolve_file_with_claude(file, &patch_content)?;
+    }
+
+    println!("\nAll conflicts resolved!");
+    Ok(())
+}
+
+/// Find all files containing git-style conflict markers
+fn find_conflicted_files() -> Result<Vec<String>> {
+    let mut files = Vec::new();
+
+    // Search in current directory for files with conflict markers
+    for entry in fs::read_dir(".")? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if content.contains("<<<<<<<") && content.contains("=======") && content.contains(">>>>>>>") {
+                    files.push(path.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    Ok(files)
+}
+
+/// Resolve a single file's conflicts using Claude Code
+fn resolve_file_with_claude(file_path: &str, patch_content: &str) -> Result<()> {
+    println!("Resolving: {}", file_path);
+
+    // Read the current file content with conflict markers
+    let current_content = fs::read_to_string(file_path)?;
+
+    // Build a detailed prompt for Claude Code
+    let prompt = build_resolution_prompt(file_path, &current_content, patch_content);
+
+    // Run Claude Code with the prompt
+    let output = Command::new("claude")
+        .args([
+            "--bare",
+            "-p", &prompt,
+            "--output-format", "json",
+            "--allowedTools", "Read,Edit,Bash"
+        ])
+        .output()
+        .context("Failed to run Claude Code. Make sure it's installed and in PATH.")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Claude Code failed: {}", stderr);
+        return Ok(());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse JSON output to get the resolution
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
+        if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+            // Write the resolved content
+            fs::write(file_path, result)?;
+            println!("  -> Resolved successfully");
+            return Ok(());
+        }
+    }
+
+    println!("  -> Could not parse Claude Code output, please resolve manually");
+    Ok(())
+}
+
+/// Build a detailed prompt for Claude Code to resolve conflicts
+fn build_resolution_prompt(file_path: &str, conflicted_content: &str, patch_content: &str) -> String {
+    let mut prompt = format!(
+        r#"You are helping resolve git-style merge conflicts in the file: {}
+
+## Your Task:
+1. Read the conflicted file
+2. Understand the user's original intent from their PATCH.md customizations
+3. Resolve the conflicts by implementing the user's intended functionality
+
+## Conflicted File Content:
+```
+{}
+```
+
+## User's PATCH.md (their customizations and intent):
+```
+{}
+```
+
+## Instructions:
+- Analyze the conflict markers (<<<<<<<, =======, >>>>>>>)
+- Understand what changes each side represents
+- Use the PATCH.md intent to determine the correct resolution
+- Implement the user's intended functionality in the new codebase
+- Output ONLY the resolved file content as plain text (no markdown, no explanations)
+- The output will be used directly to replace the file content"#,
+        file_path,
+        conflicted_content,
+        patch_content
+    );
+
+    prompt
 }
 
 /// Remove a patch from PATCH.md

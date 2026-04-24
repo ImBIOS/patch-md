@@ -1,4 +1,7 @@
 //! Data models for PATCH.md format
+//!
+//! Implements Theo's vision for self-healing software:
+//! - Dual-Record Keeping: Records both the actual code edit AND the descriptive intent
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -28,11 +31,20 @@ impl Default for PatchMetadata {
 }
 
 /// A single patch for one file
+/// Implements dual-record keeping: stores both the diff AND the user's intent
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilePatch {
     /// The file path this patch applies to
     pub path: String,
-    /// The unified diff content
+
+    /// Intent-Based Customization: describes WHY this change was made
+    /// This is the "descriptive logic" that Theo envisioned
+    /// Example: "Enable debug mode for development environment"
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intent: Option<String>,
+
+    /// The unified diff content (the actual code edit)
     pub diff: String,
 }
 
@@ -41,6 +53,15 @@ impl FilePatch {
         Self {
             path: path.into(),
             diff: diff.into(),
+            intent: None,
+        }
+    }
+
+    pub fn with_intent(path: impl Into<String>, diff: impl Into<String>, intent: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            diff: diff.into(),
+            intent: Some(intent.into()),
         }
     }
 }

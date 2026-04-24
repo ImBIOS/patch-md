@@ -28,8 +28,8 @@ fn run() -> Result<()> {
         cli::Commands::Init { target, author } => {
             commands::init(target.as_deref(), author.as_deref())?;
         }
-        cli::Commands::Add { file, original } => {
-            commands::add(&file, original.as_deref())?;
+        cli::Commands::Add { file, original, intent } => {
+            commands::add(&file, original.as_deref(), intent.as_deref())?;
         }
         cli::Commands::Apply { dry_run, force } => {
             commands::apply(dry_run, force)?;
@@ -42,6 +42,9 @@ fn run() -> Result<()> {
         }
         cli::Commands::Reconcile { upstream } => {
             commands::reconcile(&upstream)?;
+        }
+        cli::Commands::Resolve { file, agent } => {
+            commands::resolve(file.as_deref(), agent.as_deref())?;
         }
         cli::Commands::Remove { file } => {
             commands::remove(&file)?;

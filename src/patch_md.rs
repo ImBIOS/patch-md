@@ -1,4 +1,7 @@
 //! PATCH.md parsing and serialization
+//!
+//! Implements Theo's vision for dual-record keeping:
+//! - Stores both the actual code edit AND the descriptive intent
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -14,11 +17,13 @@ pub fn parse(content: &str) -> Result<PatchDocument> {
     let mut in_metadata = false;
     let mut in_patch = false;
     let mut current_file = String::new();
+    let mut current_intent: Option<String> = None;
     let mut current_diff_lines: Vec<String> = Vec::new();
     let mut metadata_lines: Vec<String> = Vec::new();
 
     let header_regex = Regex::new(r"^##\s+(\w+)")?;
     let file_header_regex = Regex::new(r"^###\s+(.+)$")?;
+    let intent_regex = Regex::new(r"^>\s*\*\*Intent\*\*:\s*(.+)$")?;
     let diff_start_regex = Regex::new(r"^```diff$")?;
     let code_end_regex = Regex::new(r"^```$")?;
 
@@ -42,16 +47,27 @@ pub fn parse(content: &str) -> Result<PatchDocument> {
         if let Some(caps) = file_header_regex.captures(line) {
             // Save previous patch if exists
             if !current_file.is_empty() && !current_diff_lines.is_empty() {
-                doc.add_patch(FilePatch::new(
-                    &current_file,
-                    current_diff_lines.join("\n"),
-                ));
+                let patch = if let Some(intent) = current_intent.take() {
+                    FilePatch::with_intent(&current_file, current_diff_lines.join("\n"), intent)
+                } else {
+                    FilePatch::new(&current_file, current_diff_lines.join("\n"))
+                };
+                doc.add_patch(patch);
             }
 
             current_file = caps.get(1).unwrap().as_str().to_string();
+            current_intent = None;
             current_diff_lines.clear();
             in_patch = true;
             continue;
+        }
+
+        // Check for intent field (quoted text after file header)
+        if in_patch && !current_file.is_empty() && current_diff_lines.is_empty() {
+            if let Some(caps) = intent_regex.captures(line) {
+                current_intent = Some(caps.get(1).unwrap().as_str().to_string());
+                continue;
+            }
         }
 
         // Check for diff code block start
@@ -63,12 +79,15 @@ pub fn parse(content: &str) -> Result<PatchDocument> {
         if code_end_regex.is_match(line) {
             // Save current patch
             if !current_file.is_empty() && !current_diff_lines.is_empty() {
-                doc.add_patch(FilePatch::new(
-                    &current_file,
-                    current_diff_lines.join("\n"),
-                ));
+                let patch = if let Some(intent) = current_intent.take() {
+                    FilePatch::with_intent(&current_file, current_diff_lines.join("\n"), intent)
+                } else {
+                    FilePatch::new(&current_file, current_diff_lines.join("\n"))
+                };
+                doc.add_patch(patch);
             }
             current_file.clear();
+            current_intent = None;
             current_diff_lines.clear();
             continue;
         }
@@ -164,6 +183,13 @@ pub fn serialize(doc: &PatchDocument) -> Result<String> {
     for patch in &doc.patches {
         writeln!(output, "### {}", patch.path)?;
         writeln!(output)?;
+
+        // Include intent if present (dual-record keeping)
+        if let Some(ref intent) = patch.intent {
+            writeln!(output, "> **Intent**: {}", intent)?;
+            writeln!(output)?;
+        }
+
         writeln!(output, "```diff")?;
         writeln!(output, "{}", patch.diff)?;
         writeln!(output, "```")?;
