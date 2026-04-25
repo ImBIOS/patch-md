@@ -1,5 +1,7 @@
 # Patch.md - Self-Healing Software
 
+*"Each time we sync from upstream, an AI agent reviews the patch.md file, understands the user's original goal, and attempts to re-implement that functionality in the new codebase."*
+
 A CLI tool for the PATCH.md standard - enabling self-healing and easy reconciliation when upstream software receives updates. Features **Intent-Based Customization** and **Agent-Assisted Reconciliation** powered by Claude Code.
 
 ## Overview
@@ -12,57 +14,9 @@ PATCH.md is a way for users to encode their specific customizations into a markd
 - **Intent-Based Customization**: Describes WHY each change was made
 - **Agent-Assisted Reconciliation**: Claude Code AI helps resolve conflicts intelligently
 
-## Installation
-
-```bash
-# From source
-cargo install --path .
-
-# Or build manually
-cargo build --release
-```
-
-## Quick Start
-
-```bash
-# Initialize PATCH.md for your project
-patch-md init --target "upstream@v1.0.0"
-
-# Make your customizations to files...
-
-# Capture your changes as patches (with intent!)
-patch-md add src/config.rs --original .original/src/config.rs \
-    --intent "Enable debug logging for development environment"
-
-# Check status
-patch-md status
-
-# View diff (includes your intent)
-patch-md diff
-
-# When upstream updates, reconcile
-patch-md reconcile --upstream /path/to/upstream
-
-# Use AI to resolve conflicts intelligently
-patch-md resolve
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `init` | Initialize a new PATCH.md file |
-| `add <file>` | Add a file's current state as a patch |
-| `apply` | Apply patches to current files |
-| `diff` | Show diff between PATCH.md and current state |
-| `status` | Check status of patches |
-| `reconcile` | Reconcile patches with upstream changes |
-| `resolve` | AI-assisted conflict resolution (Claude Code) |
-| `remove <file>` | Remove a patch from PATCH.md |
-
 ## PATCH.md Format
 
-```markdown
+````markdown
 # PATCH.md
 
 ## Metadata
@@ -88,9 +42,11 @@ patch-md resolve
 +const DEBUG = true;
 ```
 
-```
+````
 
 ## How It Works
+
+<!--TODO: Need to investigate further-->
 
 1. **Capture Original**: Keep original versions of upstream files in `.original/`
 2. **Make Changes**: Customize the software to your needs
@@ -99,50 +55,11 @@ patch-md resolve
 5. **Reconcile**: Use `patch-md reconcile` to merge your changes with upstream
 6. **AI Resolution**: Use `patch-md resolve` to have Claude Code intelligently resolve conflicts based on your original intent
 
-## Options
-
-### init
-```bash
-patch-md init [OPTIONS]
-
-Options:
-  --target <target>    Upstream target version (e.g., "repo@v1.0.0")
-  --author <author>    Author name
-```
-
-### add
-```bash
-patch-md add <file> [OPTIONS]
-
-Options:
-  --original <path>    Path to original file for comparison
-  --intent <text>      Intent-Based Customization: describe WHY this change was made
-```
-
-### reconcile
-```bash
-patch-md reconcile --upstream <path>
-```
-
-### resolve (AI-Assisted)
-```bash
-patch-md resolve [OPTIONS]
-
-Options:
-  --file <path>    Specific file to resolve (default: all files with conflicts)
-```
-
 ## AI-Assisted Reconciliation
 
-When `patch-md reconcile` detects conflicts, use `patch-md resolve` to have Claude Code:
+Claude Code will analyze the intent behind your changes and the new upstream code to attempt to re-implement your functionality in the updated codebase. The process involves:
 
 1. Read your PATCH.md (with intents)
 2. Analyze the conflicted file
 3. Understand your original goal
 4. Re-implement your functionality in the new codebase
-
-This implements Theo's vision: *"If a conflict arises, an AI agent reviews the patch.md file, understands the user's original goal, and attempts to re-implement that functionality in the new codebase."*
-
-## License
-
-MIT
