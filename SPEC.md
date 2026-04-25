@@ -14,7 +14,7 @@ PATCH.md is a markdown file that contains metadata, unified diffs, and **intent 
 
 ## File Structure
 
-```markdown
+````markdown
 # PATCH.md
 
 ## Metadata
@@ -43,7 +43,7 @@ PATCH.md is a markdown file that contains metadata, unified diffs, and **intent 
 
 ### another-file.txt
 ...
-```
+````
 
 ## Metadata Fields
 
@@ -95,20 +95,7 @@ Uses standard unified diff format:
 3. **Apply**: Apply patches to current upstream
 4. **Diff**: Show differences from original (including intent)
 5. **Status**: Check compatibility with current upstream
-6. **Reconcile**: Attempt automatic merge of conflicts
-7. **Resolve**: Agent-assisted AI reconciliation (Claude Code)
-
-### CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `patch-md init` | Initialize new PATCH.md |
-| `patch-md add <file> --intent "description"` | Add patch with intent |
-| `patch-md apply` | Apply all patches |
-| `patch-md diff` | Show patches and intents |
-| `patch-md status` | Check patch compatibility |
-| `patch-md reconcile --upstream <path>` | 3-way merge with upstream |
-| `patch-md resolve` | AI-assisted conflict resolution |
+6. **Resolve**: Agent-assisted AI reconciliation (Claude Code)
 
 ### Patch Application Strategy
 
@@ -152,7 +139,3 @@ The `resolve` command implements Theo's vision:
 ```
 
 This enables "an AI agent reviews the patch.md file, understands the user's original goal, and attempts to re-implement that functionality in the new codebase."
-
-## Examples
-
-See `docs/` directory for real-world scenario documentation.

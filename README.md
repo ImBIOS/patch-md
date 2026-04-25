@@ -16,31 +16,7 @@ PATCH.md is a way for users to encode their specific customizations into a markd
 
 ## PATCH.md Format
 
-````markdown
-# PATCH.md
-
-## Metadata
-
-| Key | Value |
-|-----|-------|
-| version | 1.0 |
-| target | upstream@v1.0.0 |
-| created | 2026-04-24T12:00:00Z |
-| author | username |
-
-## Patches
-
-### src/config.rs
-
-> **Intent**: Enable debug logging for development environment
-
-```diff
---- a/src/config.rs
-+++ b/src/config.rs
-@@ -5,7 +5,7 @@
--const DEBUG = false;
-+const DEBUG = true;
-```
+<!--TODO: Need to decide-->
 
 ````
 
